@@ -3,7 +3,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-df = pd.read_csv('full_data.csv')
+# path kalo run deploy
+df = pd.read_csv('dashboard/full_data.csv')
+
+# path kalo run local
+# df = pd.read_csv('full_data.csv')
+
 df['order_purchase_timestamp'] = pd.to_datetime(df['order_purchase_timestamp'])
 
 st.sidebar.header("Filter")
