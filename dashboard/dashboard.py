@@ -2,12 +2,14 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
 
 # path kalo run deploy
-df = pd.read_csv('dashboard/full_data.csv')
+# df = pd.read_csv('dashboard/full_data.csv')
 
 # path kalo run local
-# df = pd.read_csv('full_data.csv')
+df = pd.read_csv('full_data.csv')
 
 df['order_purchase_timestamp'] = pd.to_datetime(df['order_purchase_timestamp'])
 
@@ -42,44 +44,37 @@ tab1, tab2 = st.tabs(["Produk Terjual", "Pendapatan Produk"])
 with tab1:    
     st.write(""" ##### Berdasarkan Jumlah Produk Terjual """)
     
-    categories = df['product_category_name_english'].unique()
-    selected_category = st.selectbox("Pilih Kategori Produk", options=categories)
-
-    category_data = filtered_data[filtered_data['product_category_name_english'] == selected_category]
+    category_sales = filtered_data.groupby('product_category_name_english')['order_item_id'].sum().reset_index()
     
-    top_products = category_data.groupby('product_id')['order_item_id'].sum().reset_index()
-    top_products = top_products.sort_values(by='order_item_id', ascending=False).head(10)
+    top_categories_sales = category_sales.sort_values(by='order_item_id', ascending=False).head(10)
     
     plt.figure(figsize=(10, 6))
-    sns.barplot(x='order_item_id', y='product_id', data=top_products, palette='Blues_r')
+    sns.barplot(x='order_item_id', y='product_category_name_english', data=top_categories_sales, palette='Blues_r')
     plt.xlabel('Jumlah Produk Terjual')
-    plt.ylabel('Product ID')
-    plt.title(f'Top 10 Produk Terlaris dalam Kategori {selected_category}')
+    plt.ylabel('Kategori Produk')
+    plt.title('Top 10 Kategori Produk Terlaris')
     st.pyplot(plt)
 
-    st.write(f"Top 10 produk terlaris dalam kategori '{selected_category}':")
-    st.write(top_products)
+    st.write("Top 10 kategori produk dengan jumlah produk terjual tertinggi:")
+    st.write(top_categories_sales)
 
 with tab2:    
     st.write(""" ##### Berdasarkan Pendapatan Produk """)
 
-    selected_category_rev = st.selectbox("Pilih Kategori Produk untuk Analisis Pendapatan", options=categories)
-    category_data_rev = filtered_data[filtered_data['product_category_name_english'] == selected_category_rev]
-
-    category_data_rev['revenue'] = category_data_rev['price'] * category_data_rev['order_item_id']
-    revenue_data = category_data_rev.groupby('product_id')['revenue'].sum().reset_index()
-    revenue_data = revenue_data.sort_values(by='revenue', ascending=False).head(10)
+    filtered_data['revenue'] = filtered_data['price'] * filtered_data['order_item_id']
+    category_revenue = filtered_data.groupby('product_category_name_english')['revenue'].sum().reset_index()
+    
+    top_categories_revenue = category_revenue.sort_values(by='revenue', ascending=False).head(10)
     
     plt.figure(figsize=(10, 6))
-    sns.barplot(x='revenue', y='product_id', data=revenue_data, palette='viridis')
+    sns.barplot(x='revenue', y='product_category_name_english', data=top_categories_revenue, palette='viridis')
     plt.xlabel('Pendapatan')
-    plt.ylabel('Product ID')
-    plt.title(f'Top 10 Produk dengan Pendapatan Tertinggi dalam Kategori {selected_category_rev}')
+    plt.ylabel('Kategori Produk')
+    plt.title('Top 10 Kategori Produk dengan Pendapatan Tertinggi')
     st.pyplot(plt)
 
-    st.write(f"Top 10 produk dengan pendapatan tertinggi dalam kategori '{selected_category_rev}':")
-    st.write(revenue_data)
-
+    st.write("Top 10 kategori produk dengan pendapatan tertinggi:")
+    st.write(top_categories_revenue)
 
 st.subheader("Rating Produk")
 tab1, tab2, tab3 = st.tabs(["Tren Penjualan & Review Score","Tren Review", "Kategori Produk" ])
@@ -157,41 +152,89 @@ with tab3:
     plt.title('Rata-rata Review Score per Kategori Produk')
     plt.xticks(rotation=45, ha='right')
     st.pyplot(plt)
+    
 
-
-
-st.subheader("Total Penjualan Produk per Wilayah")
-
+# Dictionary Mapping Kode Wilayah ke Nama Lengkap
 state_mapping = {
-    'BA': 'Bahia',
-    'DF': 'Distrito Federal',
-    'SP': 'São Paulo',
-    'RJ': 'Rio de Janeiro',
-    'MG': 'Minas Gerais',
-    'RS': 'Rio Grande do Sul',
-    'PR': 'Paraná',
-    'SC': 'Santa Catarina',
-    'PE': 'Pernambuco',
-    'CE': 'Ceará',
+    "AC": "Acre", "AL": "Alagoas", "AP": "Amapá", "AM": "Amazonas", "BA": "Bahia",
+    "CE": "Ceará", "DF": "Distrito Federal", "ES": "Espírito Santo", "GO": "Goiás",
+    "MA": "Maranhão", "MT": "Mato Grosso", "MS": "Mato Grosso do Sul", "MG": "Minas Gerais",
+    "PA": "Pará", "PB": "Paraíba", "PR": "Paraná", "PE": "Pernambuco", "PI": "Piauí",
+    "RJ": "Rio de Janeiro", "RN": "Rio Grande do Norte", "RS": "Rio Grande do Sul",
+    "RO": "Rondônia", "RR": "Roraima", "SC": "Santa Catarina", "SP": "São Paulo",
+    "SE": "Sergipe", "TO": "Tocantins"
 }
 
-region_sales_data = filtered_data.copy()
-total_sales_by_state = region_sales_data.groupby('customer_state')['order_item_id'].sum().reset_index()
-total_sales_by_state['customer_state'] = total_sales_by_state['customer_state'].map(state_mapping)
-top_states_sales = total_sales_by_state.sort_values(by='order_item_id', ascending=False)
+df_cluster = filtered_data[['customer_state', 'order_item_id']].copy()
+df_cluster = df_cluster.groupby('customer_state').sum().reset_index()
 
-fig, ax = plt.subplots(figsize=(14, 7))
-sns.barplot(data=top_states_sales, x='customer_state', y='order_item_id', palette='viridis')
-plt.xlabel('Wilayah Pengiriman', fontsize=12)
-plt.ylabel('Total Produk Terjual', fontsize=12)
-plt.title('Total Penjualan Produk per Wilayah Pengiriman', fontsize=14, fontweight='bold')
+df_cluster['customer_state'] = df_cluster['customer_state'].map(state_mapping)
 
-for p in ax.patches:
-    ax.annotate(f'{p.get_height():,.0f}', 
-                (p.get_x() + p.get_width() / 2., p.get_height()), 
-                ha='center', va='center', 
-                fontsize=12, color='black', 
-                xytext=(0, 9), textcoords='offset points')
+scaler = StandardScaler()
+df_cluster['Scaled_Sales'] = scaler.fit_transform(df_cluster[['order_item_id']])
 
-st.pyplot(fig)
+wcss = []
+K_range = range(1, 10)
+for k in K_range:
+    kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+    kmeans.fit(df_cluster[['Scaled_Sales']])
+    wcss.append(kmeans.inertia_)
 
+optimal_k = 3
+kmeans = KMeans(n_clusters=optimal_k, random_state=42, n_init=10)
+df_cluster['Cluster'] = kmeans.fit_predict(df_cluster[['Scaled_Sales']])
+
+st.subheader("Analisis Lanjutan : Clustering Wilayah Berdasarkan Penjualan")
+
+tab1, tab2, tab3 = st.tabs(["Bar Chart Penjualan", "K-Means Clustering", "Elbow Method"])
+
+with tab1:
+    st.subheader("Total Produk Terjual per Wilayah")
+    
+    plt.figure(figsize=(12, 6))
+    sns.barplot(
+        x=df_cluster["customer_state"],
+        y=df_cluster["order_item_id"],
+        hue=df_cluster["Cluster"].astype(str),
+        palette=sns.color_palette("viridis", optimal_k)
+    )
+    plt.xlabel("Wilayah")
+    plt.ylabel("Total Produk Terjual")
+    plt.title("Clustering Wilayah Berdasarkan Penjualan")
+    plt.xticks(rotation=45)
+    plt.legend(title="Cluster")
+    plt.grid()
+
+    st.pyplot(plt)
+
+with tab2:
+    st.subheader("Visualisasi K-Means Clustering")
+    
+    plt.figure(figsize=(12, 6))
+    sns.scatterplot(
+        x=df_cluster["customer_state"],
+        y=df_cluster["Scaled_Sales"],
+        hue=df_cluster["Cluster"].astype(str),
+        palette=sns.color_palette("viridis", optimal_k),
+        s=100
+    )
+    plt.xlabel("Wilayah")
+    plt.ylabel("Penjualan (Terskala)")
+    plt.title("Visualisasi Clustering K-Means")
+    plt.xticks(rotation=45)
+    plt.legend(title="Cluster")
+    plt.grid()
+
+    st.pyplot(plt)
+
+with tab3:
+    st.subheader("Menentukan Cluster Optimal dengan Metode Elbow")
+    
+    plt.figure(figsize=(10, 5))
+    plt.plot(K_range, wcss, marker='o', linestyle='-', color='b')
+    plt.xlabel("Jumlah Cluster")
+    plt.ylabel("WCSS")
+    plt.title("Metode Elbow untuk Menentukan Cluster Optimal")
+    plt.grid()
+
+    st.pyplot(plt)
