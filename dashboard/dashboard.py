@@ -165,76 +165,54 @@ state_mapping = {
     "SE": "Sergipe", "TO": "Tocantins"
 }
 
-df_cluster = filtered_data[['customer_state', 'order_item_id']].copy()
+df_cluster = df[['customer_state', 'order_item_id']].copy()
 df_cluster = df_cluster.groupby('customer_state').sum().reset_index()
 
-df_cluster['customer_state'] = df_cluster['customer_state'].map(state_mapping)
+# df_cluster['customer_state'] = df_cluster['customer_state'].map(state_mapping)
 
-scaler = StandardScaler()
-df_cluster['Scaled_Sales'] = scaler.fit_transform(df_cluster[['order_item_id']])
+# Binning berdasarkan aturan bisnis
+bins = [df_cluster['order_item_id'].min(), 
+        df_cluster['order_item_id'].quantile(0.33), 
+        df_cluster['order_item_id'].quantile(0.66), 
+        df_cluster['order_item_id'].max()]
 
-wcss = []
-K_range = range(1, 10)
-for k in K_range:
-    kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
-    kmeans.fit(df_cluster[['Scaled_Sales']])
-    wcss.append(kmeans.inertia_)
+labels = ['Low Sales Region', 'Medium Sales Region', 'High Sales Region']
+df_cluster['Sales_Category'] = pd.cut(df_cluster['order_item_id'], bins=bins, labels=labels, include_lowest=True)
 
-optimal_k = 3
-kmeans = KMeans(n_clusters=optimal_k, random_state=42, n_init=10)
-df_cluster['Cluster'] = kmeans.fit_predict(df_cluster[['Scaled_Sales']])
+st.subheader("Analisis Lanjutan: Pengelompokan Wilayah Berdasarkan Penjualan Menggunakan Metode Binning")
 
-st.subheader("Analisis Lanjutan : Clustering Wilayah Berdasarkan Penjualan")
-
-tab1, tab2, tab3 = st.tabs(["Bar Chart Penjualan", "K-Means Clustering", "Elbow Method"])
-
-with tab1:
-    st.subheader("Total Produk Terjual per Wilayah")
-    
+tab1, tab2 = st.tabs(["Bar Chart Penjualan", "Distribusi Wilayah"])
+with tab1:    
+    st.write(""" ##### Total Produk Terjual per Wilayah """)
     plt.figure(figsize=(12, 6))
-    sns.barplot(
+    ax = sns.barplot(
         x=df_cluster["customer_state"],
         y=df_cluster["order_item_id"],
-        hue=df_cluster["Cluster"].astype(str),
-        palette=sns.color_palette("viridis", optimal_k)
+        hue=df_cluster["Sales_Category"],
+        palette=sns.color_palette("viridis", 3)
     )
     plt.xlabel("Wilayah")
     plt.ylabel("Total Produk Terjual")
-    plt.title("Clustering Wilayah Berdasarkan Penjualan")
+    plt.title("Pengelompokan Wilayah Berdasarkan Penjualan")
     plt.xticks(rotation=45)
-    plt.legend(title="Cluster")
-    plt.grid()
-
+    plt.legend(title="Kategori Penjualan")
+    plt.grid()            
     st.pyplot(plt)
 
-with tab2:
-    st.subheader("Visualisasi K-Means Clustering")
-    
+with tab2:        
+    st.write(""" ##### Distribusi Penjualan Berdasarkan Wilayah """)
     plt.figure(figsize=(12, 6))
     sns.scatterplot(
         x=df_cluster["customer_state"],
-        y=df_cluster["Scaled_Sales"],
-        hue=df_cluster["Cluster"].astype(str),
-        palette=sns.color_palette("viridis", optimal_k),
+        y=df_cluster["order_item_id"],
+        hue=df_cluster["Sales_Category"],
+        palette=sns.color_palette("viridis", 3),
         s=100
     )
     plt.xlabel("Wilayah")
-    plt.ylabel("Penjualan (Terskala)")
-    plt.title("Visualisasi Clustering K-Means")
+    plt.ylabel("Total Produk Terjual")
+    plt.title("Scatter Plot Distribusi Penjualan per Wilayah")
     plt.xticks(rotation=45)
-    plt.legend(title="Cluster")
+    plt.legend(title="Kategori Penjualan")
     plt.grid()
-
-    st.pyplot(plt)
-
-with tab3:
-    st.subheader("Menentukan Cluster Optimal dengan Metode Elbow")
-    
-    plt.figure(figsize=(10, 5))
-    plt.plot(K_range, wcss, marker='o', linestyle='-', color='b')
-    plt.xlabel("Jumlah Cluster")
-    plt.ylabel("WCSS")
-    plt.title("Metode Elbow untuk Menentukan Cluster Optimal")
-    plt.grid()
-
     st.pyplot(plt)
