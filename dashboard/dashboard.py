@@ -152,7 +152,7 @@ with tab3:
     plt.xticks(rotation=45, ha='right')
     st.pyplot(plt)
 
-df_cluster = df[['customer_state', 'order_item_id']].copy()
+df_cluster = filtered_data[['customer_state', 'order_item_id']].copy()
 df_cluster = df_cluster.groupby('customer_state').sum().reset_index()
 
 # Kategorisasi berdasarkan kuantil
