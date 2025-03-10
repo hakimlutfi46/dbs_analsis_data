@@ -1,4 +1,8 @@
-streamlit==1.43.0
 pandas==2.2.3
-seaborn==0.13.2
 matplotlib==3.10.1
+seaborn==0.13.2
+geopandas==1.0.1
+folium==0.19.5
+geobr==0.2.2
+streamlit==1.43.0
+streamlit_folium==0.24.0
