@@ -16,9 +16,13 @@ df['order_purchase_timestamp'] = pd.to_datetime(df['order_purchase_timestamp'])
 
 st.sidebar.header("Filter")
 years = df['order_purchase_timestamp'].dt.year.unique()
-selected_years = st.sidebar.multiselect('Pilih Tahun', options=years, default=list(years))
 
+selected_years = st.sidebar.multiselect('Pilih Tahun', options=years, default=list(years))
+if not selected_years:
+    st.warning("Silakan pilih setidaknya satu tahun untuk menampilkan data.")
+    st.stop()
 filtered_data = df[df['order_purchase_timestamp'].dt.year.isin(selected_years)]
+
 filtered_data['revenue'] = filtered_data['price'] * filtered_data['order_item_id']
 total_revenue = filtered_data['revenue'].sum()
 total_reviews = filtered_data['review_score'].sum()
