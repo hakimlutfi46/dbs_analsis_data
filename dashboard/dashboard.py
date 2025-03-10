@@ -7,11 +7,8 @@ from geobr import read_state
 import streamlit as st
 from streamlit_folium import folium_static
 
-# path kalo run deploy
-df = pd.read_csv('dashboard/merged_dataset.csv')
+df = pd.read_csv('./merged_dataset.csv')
 
-# path kalo run local
-# df = pd.read_csv('merged_dataset.csv')
 
 df['order_purchase_timestamp'] = pd.to_datetime(df['order_purchase_timestamp'])
 
