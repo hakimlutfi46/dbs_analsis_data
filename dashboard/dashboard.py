@@ -7,10 +7,10 @@ from geobr import read_state
 import streamlit as st
 from streamlit_folium import folium_static
 
-delpoy_url = 'dashboard/merged_dataset.csv'
-local_url = 'merged_dataset.csv'
-
-df = pd.read_csv(delpoy_url)
+try:
+    df = pd.read_csv('dashboard/merged_dataset.csv')
+except FileNotFoundError:
+    df = pd.read_csv('merged_dataset.csv')
 
 df['order_purchase_timestamp'] = pd.to_datetime(df['order_purchase_timestamp'])
 
