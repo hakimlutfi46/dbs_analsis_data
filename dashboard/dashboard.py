@@ -8,10 +8,10 @@ import streamlit as st
 from streamlit_folium import folium_static
 
 # path kalo run deploy
-# df = pd.read_csv('dashboard/full_data.csv')
+df = pd.read_csv('dashboard/merged_dataset.csv')
 
 # path kalo run local
-df = pd.read_csv('merged_dataset.csv')
+# df = pd.read_csv('merged_dataset.csv')
 
 df['order_purchase_timestamp'] = pd.to_datetime(df['order_purchase_timestamp'])
 
@@ -81,7 +81,6 @@ st.subheader("Rating Produk")
 tab1, tab2, tab3 = st.tabs(["Tren Penjualan & Review Score","Tren Review", "Kategori Produk" ])
 
 with tab1: 
-
     monthly_sales = filtered_data.groupby(filtered_data['order_purchase_timestamp'].dt.to_period("M")).agg({
         'order_item_id': 'sum',  
         'review_score': 'mean'   
@@ -197,8 +196,7 @@ with tab1:
             folium.Marker(
                 location=[centroid.y, centroid.x],
                 icon=folium.DivIcon(html=f'<div style="font-size: 12px; font-weight: bold; color: black;">{int(row["order_item_id"])}</div>')
-            ).add_to(m)
-    
+            ).add_to(m)    
     folium_static(m)
 
 with tab2:        
