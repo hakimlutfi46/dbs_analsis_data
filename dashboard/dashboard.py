@@ -1,15 +1,17 @@
-import streamlit as st
 import pandas as pd
+import geopandas as gpd
+import folium
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler
+from geobr import read_state
+import streamlit as st
+from streamlit_folium import folium_static
 
 # path kalo run deploy
 # df = pd.read_csv('dashboard/full_data.csv')
 
 # path kalo run local
-df = pd.read_csv('full_data.csv')
+df = pd.read_csv('merged_dataset.csv')
 
 df['order_purchase_timestamp'] = pd.to_datetime(df['order_purchase_timestamp'])
 
@@ -28,7 +30,7 @@ st.title("Analisis Data E-commerce Public Dataset")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric(label="Total Pendapatan", value=f"Rp {total_revenue:,.0f}")
+    st.metric(label="Total Pendapatan", value=f"{total_revenue:,.0f}")
 
 with col2:
     st.metric(label="Total Review Score", value=f"{total_reviews:,.0f}")
@@ -60,8 +62,7 @@ with tab1:
 
 with tab2:    
     st.write(""" ##### Berdasarkan Pendapatan Produk """)
-
-    filtered_data['revenue'] = filtered_data['price'] * filtered_data['order_item_id']
+    
     category_revenue = filtered_data.groupby('product_category_name_english')['revenue'].sum().reset_index()
     
     top_categories_revenue = category_revenue.sort_values(by='revenue', ascending=False).head(10)
@@ -152,25 +153,11 @@ with tab3:
     plt.title('Rata-rata Review Score per Kategori Produk')
     plt.xticks(rotation=45, ha='right')
     st.pyplot(plt)
-    
-
-# Dictionary Mapping Kode Wilayah ke Nama Lengkap
-state_mapping = {
-    "AC": "Acre", "AL": "Alagoas", "AP": "Amapá", "AM": "Amazonas", "BA": "Bahia",
-    "CE": "Ceará", "DF": "Distrito Federal", "ES": "Espírito Santo", "GO": "Goiás",
-    "MA": "Maranhão", "MT": "Mato Grosso", "MS": "Mato Grosso do Sul", "MG": "Minas Gerais",
-    "PA": "Pará", "PB": "Paraíba", "PR": "Paraná", "PE": "Pernambuco", "PI": "Piauí",
-    "RJ": "Rio de Janeiro", "RN": "Rio Grande do Norte", "RS": "Rio Grande do Sul",
-    "RO": "Rondônia", "RR": "Roraima", "SC": "Santa Catarina", "SP": "São Paulo",
-    "SE": "Sergipe", "TO": "Tocantins"
-}
 
 df_cluster = df[['customer_state', 'order_item_id']].copy()
 df_cluster = df_cluster.groupby('customer_state').sum().reset_index()
 
-# df_cluster['customer_state'] = df_cluster['customer_state'].map(state_mapping)
-
-# Binning berdasarkan aturan bisnis
+# Kategorisasi berdasarkan kuantil
 bins = [df_cluster['order_item_id'].min(), 
         df_cluster['order_item_id'].quantile(0.33), 
         df_cluster['order_item_id'].quantile(0.66), 
@@ -179,10 +166,42 @@ bins = [df_cluster['order_item_id'].min(),
 labels = ['Low Sales Region', 'Medium Sales Region', 'High Sales Region']
 df_cluster['Sales_Category'] = pd.cut(df_cluster['order_item_id'], bins=bins, labels=labels, include_lowest=True)
 
-st.subheader("Analisis Lanjutan: Pengelompokan Wilayah Berdasarkan Penjualan Menggunakan Metode Binning")
+# Load batas wilayah Brasil
+brazil_states = read_state()
+# Gabungkan dengan data sales berdasarkan customer_state
+brazil_states = brazil_states.merge(df_cluster, left_on='abbrev_state', right_on='customer_state', how='left')
 
-tab1, tab2 = st.tabs(["Bar Chart Penjualan", "Distribusi Wilayah"])
+
+st.subheader("Analisis Lanjutan: Pengelompokan Wilayah Berdasarkan Penjualan Menggunakan Metode Binning")
+tab1, tab2 = st.tabs(["Distribusi Wilayah", "Bar Chart Penjualan"])
+
 with tab1:    
+    st.write(""" ##### Distribusi Penjualan Berdasarkan Wilayah """)
+    m = folium.Map(location=[-14.235, -51.9253], zoom_start=5, max_zoom=7, min_zoom=4)
+    
+    choropleth = folium.Choropleth(
+        geo_data=brazil_states,
+        name='choropleth',
+        data=brazil_states,
+        columns=['abbrev_state', 'order_item_id'],
+        key_on='feature.properties.abbrev_state',
+        fill_color='YlGnBu',
+        fill_opacity=0.7,
+        line_opacity=0.2,
+        legend_name='Total Produk Terjual'
+    ).add_to(m)
+        
+    for _, row in brazil_states.iterrows():
+        if pd.notna(row['geometry']):
+            centroid = row['geometry'].centroid
+            folium.Marker(
+                location=[centroid.y, centroid.x],
+                icon=folium.DivIcon(html=f'<div style="font-size: 12px; font-weight: bold; color: black;">{int(row["order_item_id"])}</div>')
+            ).add_to(m)
+    
+    folium_static(m)
+
+with tab2:        
     st.write(""" ##### Total Produk Terjual per Wilayah """)
     plt.figure(figsize=(12, 6))
     ax = sns.barplot(
@@ -197,22 +216,4 @@ with tab1:
     plt.xticks(rotation=45)
     plt.legend(title="Kategori Penjualan")
     plt.grid()            
-    st.pyplot(plt)
-
-with tab2:        
-    st.write(""" ##### Distribusi Penjualan Berdasarkan Wilayah """)
-    plt.figure(figsize=(12, 6))
-    sns.scatterplot(
-        x=df_cluster["customer_state"],
-        y=df_cluster["order_item_id"],
-        hue=df_cluster["Sales_Category"],
-        palette=sns.color_palette("viridis", 3),
-        s=100
-    )
-    plt.xlabel("Wilayah")
-    plt.ylabel("Total Produk Terjual")
-    plt.title("Scatter Plot Distribusi Penjualan per Wilayah")
-    plt.xticks(rotation=45)
-    plt.legend(title="Kategori Penjualan")
-    plt.grid()
     st.pyplot(plt)
